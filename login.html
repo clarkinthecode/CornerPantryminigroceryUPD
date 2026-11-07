@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CornerPantry - Mini Grocery POS Login</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+
+  <body class="login-body">
+    <div class="login-wrapper">
+      <div class="login-card">
+        <!-- Brand Header -->
+        <div class="login-brand">
+          <svg
+            class="brand-logo"
+            width="56"
+            height="56"
+            viewBox="0 0 48 48"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <defs>
+              <linearGradient
+                id="loginLogoGrad"
+                x1="0"
+                y1="0"
+                x2="48"
+                y2="48"
+                gradientUnits="userSpaceOnUse"
+              >
+                <stop stop-color="#10b981" />
+                <stop offset="1" stop-color="#047857" />
+              </linearGradient>
+            </defs>
+            <rect width="48" height="48" rx="12" fill="url(#loginLogoGrad)" />
+            <path
+              d="M14 21h20l-2.2 13.8a2 2 0 0 1-2 1.7h-11.6a2 2 0 0 1-2-1.7L14 21z"
+              fill="white"
+              fill-opacity="0.95"
+            />
+            <path
+              d="M18 21V15a6 6 0 0 1 12 0v6"
+              stroke="white"
+              stroke-width="2.5"
+              stroke-linecap="round"
+            />
+            <circle cx="24" cy="28" r="2.5" fill="#047857" />
+          </svg>
+          <h1 class="brand-title">CornerPantry</h1>
+          <p class="brand-subtitle">Mini Grocery POS Terminal</p>
+        </div>
+
+        <div class="login-intro">
+          <h2>Welcome Back</h2>
+          <p>Please enter your credentials to access the terminal.</p>
+        </div>
+
+        <!-- Form Controls -->
+        <div class="login-form-group">
+          <div class="input-field-wrapper">
+            <label for="username">Username</label>
+            <div class="input-with-icon">
+              <svg viewBox="0 0 24 24">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+              <input
+                type="text"
+                id="username"
+                placeholder="Enter username"
+                autocomplete="username"
+              />
+            </div>
+          </div>
+
+          <div class="input-field-wrapper">
+            <label for="password">Password</label>
+            <div class="input-with-icon">
+              <svg viewBox="0 0 24 24">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+              <input
+                type="password"
+                id="password"
+                placeholder="Enter password"
+                autocomplete="current-password"
+              />
+            </div>
+          </div>
+
+          <button type="button" class="btn-login" onclick="login()">
+            <span>Sign In </span>
+            <svg viewBox="0 0 24 24">
+              <line x1="5" y1="12" x2="19" y2="12" />
+              <polyline points="12 5 19 12 12 19" />
+            </svg>
+          </button>
+        </div>
+
+        <p id="login-error" class="login-error-text"></p>
+
+        <!-- System Status & Quick Info -->
+        <div class="login-footer">
+          <div class="system-status">
+            <span class="user-status-dot"></span>
+            <span>POS System Online</span>
+          </div>
+          <div class="login-hint">
+            Default Admin: <strong>admin</strong> / <strong>admin123</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const API = "";
+
+      async function login() {
+        const username = document.getElementById("username").value.trim();
+        const password = document.getElementById("password").value.trim();
+        const errorMsg = document.getElementById("login-error");
+
+        if (!username || !password) {
+          errorMsg.textContent = "Please enter username and password.";
+          errorMsg.style.display = "block";
+          return;
+        }
+
+        try {
+          if (window.location.protocol === "file:") {
+            errorMsg.innerHTML =
+              "Error: Please run via Node server and open <b>http://127.0.0.1:3000</b> in your browser.";
+            errorMsg.style.display = "block";
+            return;
+          }
+
+          const res = await fetch(`${API}/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password }),
+          });
+
+          const data = await res.json();
+
+          if (res.ok && data.success) {
+            sessionStorage.setItem("currentUser", JSON.stringify(data.user));
+            window.location.href = "index.html";
+          } else {
+            errorMsg.textContent =
+              data.error || "Invalid username or password!";
+            errorMsg.style.display = "block";
+          }
+        } catch (err) {
+          errorMsg.textContent =
+            "Cannot connect to server. Please ensure node server.js is running.";
+          errorMsg.style.display = "block";
+        }
+      }
+
+      document.addEventListener("DOMContentLoaded", () => {
+        document.getElementById("password").addEventListener("keydown", (e) => {
+          if (e.key === "Enter") login();
+        });
+        document.getElementById("username").addEventListener("keydown", (e) => {
+          if (e.key === "Enter") login();
+        });
+      });
+    </script>
+  </body>
+</html>
