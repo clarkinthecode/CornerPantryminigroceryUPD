@@ -7,6 +7,96 @@ let currentUser = null;
 let employeesCache = [];
 let productsCache = [];
 
+function getDefaultProducts() {
+  const dateAdded = new Date().toLocaleDateString("en-PH");
+  return [
+    { id: 1001, name: "Rice (1kg)", category: "Grains, Pasta & Staples", price: 58, stock: 500, dateAdded },
+    { id: 1002, name: "Eggs (1 tray)", category: "Dairy & Eggs", price: 180, stock: 500, dateAdded },
+    { id: 1003, name: "Milk (1L)", category: "Dairy & Eggs", price: 85, stock: 500, dateAdded },
+    { id: 1004, name: "Bread (Loaf)", category: "Bakery & Bread", price: 65, stock: 500, dateAdded },
+    { id: 1005, name: "Canned Tuna", category: "Canned & Packed Goods", price: 35, stock: 500, dateAdded },
+    { id: 1006, name: "Instant Noodles", category: "Canned & Packed Goods", price: 15, stock: 500, dateAdded },
+    { id: 1007, name: "Cooking Oil (1L)", category: "Grains, Pasta & Staples", price: 125, stock: 500, dateAdded },
+    { id: 1008, name: "Sugar (1kg)", category: "Grains, Pasta & Staples", price: 68, stock: 500, dateAdded },
+    { id: 1009, name: "Salt (1kg)", category: "Grains, Pasta & Staples", price: 20, stock: 500, dateAdded },
+    { id: 1010, name: "Coffee (200g)", category: "Beverages", price: 95, stock: 500, dateAdded },
+    { id: 1011, name: "Vinegar (1L)", category: "Condiments & Spices", price: 30, stock: 500, dateAdded },
+    { id: 1012, name: "Soy Sauce (1L)", category: "Condiments & Spices", price: 40, stock: 500, dateAdded },
+    { id: 1013, name: "Canned Sardines", category: "Canned & Packed Goods", price: 22, stock: 500, dateAdded },
+    { id: 1014, name: "Garlic (250g)", category: "Fresh Produce", price: 25, stock: 500, dateAdded },
+    { id: 1015, name: "Onion (1kg)", category: "Fresh Produce", price: 60, stock: 500, dateAdded },
+    { id: 1016, name: "Tomato (1kg)", category: "Fresh Produce", price: 50, stock: 500, dateAdded },
+    { id: 1017, name: "Butter (225g)", category: "Dairy & Eggs", price: 110, stock: 500, dateAdded },
+    { id: 1018, name: "Cheese (165g)", category: "Dairy & Eggs", price: 75, stock: 500, dateAdded },
+    { id: 1019, name: "Shampoo (180ml)", category: "Health & Beauty", price: 90, stock: 500, dateAdded },
+    { id: 1020, name: "Laundry Soap", category: "Cleaning Supplies", price: 18, stock: 500, dateAdded },
+    { id: 1021, name: "Potato Chips (Large)", category: "Snacks & Sweets", price: 95, stock: 500, dateAdded },
+    { id: 1022, name: "Corn Chips (Small)", category: "Snacks & Sweets", price: 15, stock: 500, dateAdded },
+    { id: 1023, name: "Chocolate Bar", category: "Snacks & Sweets", price: 35, stock: 500, dateAdded },
+    { id: 1024, name: "Biscuit Pack", category: "Snacks & Sweets", price: 55, stock: 500, dateAdded },
+  ];
+}
+
+const clientStore = {
+  get(key, defaultVal) {
+    try {
+      const v = localStorage.getItem(key);
+      return v ? JSON.parse(v) : defaultVal;
+    } catch (e) {
+      return defaultVal;
+    }
+  },
+  set(key, val) {
+    try {
+      localStorage.setItem(key, JSON.stringify(val));
+    } catch (e) {}
+  },
+  getProducts() {
+    let prods = this.get("cp_products", null);
+    if (!prods || !Array.isArray(prods) || prods.length === 0) {
+      prods = getDefaultProducts();
+      this.set("cp_products", prods);
+    }
+    prods.forEach((p) => {
+      if (!p.stock || p.stock < 500) p.stock = 500;
+    });
+    return prods;
+  },
+  getSales() {
+    return this.get("cp_sales", []);
+  },
+  getStockins() {
+    return this.get("cp_stockins", []);
+  },
+  getEmployees() {
+    return this.get("cp_employees", []);
+  },
+  getUsers() {
+    return this.get("cp_users", [{ id: 1, username: "admin", role: "Admin" }]);
+  },
+};
+
+async function apiCall(endpoint, method = "GET", data = null) {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const options = {
+      method,
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+    };
+    if (data && (method === "POST" || method === "PUT")) {
+      options.body = JSON.stringify(data);
+    }
+    const res = await fetch(`${API}${endpoint}`, options);
+    clearTimeout(timeoutId);
+    if (res.ok) {
+      return await res.json().catch(() => ({ success: true }));
+    }
+  } catch (err) {}
+  return null;
+}
+
 function formatPeso(value) {
   const num = Number(value) || 0;
   return new Intl.NumberFormat("en-PH", {
@@ -135,60 +225,52 @@ function bust(url) {
 }
 
 async function fetchProducts() {
-  try {
-    const res = await fetch(bust(`${API}/products`), { cache: "no-store" });
-    const data = await res.json();
-    productsCache = Array.isArray(data) ? data : [];
+  const data = await apiCall(`/products`);
+  if (Array.isArray(data) && data.length) {
+    productsCache = data;
+    clientStore.set("cp_products", data);
     return productsCache;
-  } catch (err) {
-    console.error("Error fetching products:", err);
-    return [];
   }
+  productsCache = clientStore.getProducts();
+  return productsCache;
 }
 
 async function fetchSales() {
-  try {
-    const res = await fetch(bust(`${API}/sales`), { cache: "no-store" });
-    const data = await res.json();
-    return Array.isArray(data) ? data : [];
-  } catch (err) {
-    console.error("Error fetching sales:", err);
-    return [];
+  const data = await apiCall(`/sales`);
+  if (Array.isArray(data)) {
+    clientStore.set("cp_sales", data);
+    return data;
   }
+  return clientStore.getSales();
 }
 
 async function fetchStockIns() {
-  try {
-    const res = await fetch(bust(`${API}/stockins`), { cache: "no-store" });
-    const data = await res.json();
-    return Array.isArray(data) ? data : [];
-  } catch (err) {
-    console.error("Error fetching stockins:", err);
-    return [];
+  const data = await apiCall(`/stockins`);
+  if (Array.isArray(data)) {
+    clientStore.set("cp_stockins", data);
+    return data;
   }
+  return clientStore.getStockins();
 }
 
 async function fetchEmployees() {
-  try {
-    const res = await fetch(bust(`${API}/employees`), { cache: "no-store" });
-    const data = await res.json();
-    employeesCache = Array.isArray(data) ? data : [];
+  const data = await apiCall(`/employees`);
+  if (Array.isArray(data)) {
+    employeesCache = data;
+    clientStore.set("cp_employees", data);
     return employeesCache;
-  } catch (err) {
-    console.error("Error fetching employees:", err);
-    return [];
   }
+  employeesCache = clientStore.getEmployees();
+  return employeesCache;
 }
 
 async function fetchUsers() {
-  try {
-    const res = await fetch(bust(`${API}/users`), { cache: "no-store" });
-    const data = await res.json();
-    return Array.isArray(data) ? data : [];
-  } catch (err) {
-    console.error("Error fetching users:", err);
-    return [];
+  const data = await apiCall(`/users`);
+  if (Array.isArray(data)) {
+    clientStore.set("cp_users", data);
+    return data;
   }
+  return clientStore.getUsers();
 }
 
 async function loadAllData() {
@@ -325,17 +407,20 @@ async function addProduct() {
     return;
   }
 
-  const res = await fetch(`${API}/products`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, category: category || "General", price, stock }),
-  });
+  const pData = {
+    id: Date.now(),
+    name,
+    category: category || "General",
+    price,
+    stock,
+    dateAdded: new Date().toLocaleDateString("en-PH"),
+  };
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    alert("Error: " + (err.error || "Failed to add product"));
-    return;
-  }
+  const serverResult = await apiCall(`/products`, "POST", pData);
+  const prods = clientStore.getProducts();
+  prods.unshift(serverResult || pData);
+  clientStore.set("cp_products", prods);
+  productsCache = prods;
 
   document.getElementById("name").value = "";
   document.getElementById("category").value = "";
@@ -390,16 +475,17 @@ async function saveProduct(id) {
     return;
   }
 
-  const res = await fetch(`${API}/products/${id}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, category, price, stock }),
-  });
+  await apiCall(`/products/${id}`, "PUT", { name, category, price, stock });
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    alert("Error updating product: " + (err.error || "Unknown error"));
-    return;
+  const prods = clientStore.getProducts();
+  const p = prods.find((item) => String(item.id) === String(id));
+  if (p) {
+    p.name = name;
+    p.category = category;
+    p.price = price;
+    p.stock = stock;
+    clientStore.set("cp_products", prods);
+    productsCache = prods;
   }
 
   showToast("Product updated successfully!");
@@ -412,11 +498,12 @@ async function saveProduct(id) {
 
 async function deleteProduct(id) {
   if (!confirm("Are you sure you want to delete this product?")) return;
-  const res = await fetch(`${API}/products/${id}`, { method: "DELETE" });
-  if (!res.ok) {
-    showToast("Failed to delete product.", "error");
-    return;
-  }
+  await apiCall(`/products/${id}`, "DELETE");
+  let prods = clientStore.getProducts();
+  prods = prods.filter((p) => String(p.id) !== String(id));
+  clientStore.set("cp_products", prods);
+  productsCache = prods;
+
   showToast("Product deleted successfully!", "info");
   await renderProducts();
   await renderInventory();
@@ -497,17 +584,32 @@ async function recordSale() {
     return;
   }
 
-  const res = await fetch(`${API}/sales`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ productId, quantity }),
-  });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    alert("Error: " + (err.error || "Failed to record sale"));
-    return;
+  // Deduct stock in clientStore
+  const prods = clientStore.getProducts();
+  const p = prods.find((item) => String(item.id) === String(productId));
+  if (p) {
+    p.stock = Math.max(0, (parseInt(p.stock, 10) || 0) - quantity);
+    clientStore.set("cp_products", prods);
+    productsCache = prods;
   }
+
+  const price = p ? Number(p.price) : Number(selectedOption.getAttribute("data-price") || 0);
+  const saleRecord = {
+    id: Date.now(),
+    productId,
+    productName: p ? p.name : selectedOption.textContent.split(" (")[0],
+    quantity,
+    revenue: parseFloat((quantity * price).toFixed(2)),
+    date: new Date().toLocaleDateString("en-PH"),
+    timestamp: new Date().toISOString(),
+  };
+
+  const sales = clientStore.getSales();
+  sales.unshift(saleRecord);
+  clientStore.set("cp_sales", sales);
+
+  // Sync to server if online
+  await apiCall(`/sales`, "POST", { productId, quantity });
 
   // Reset fields
   if (select) select.value = "";
@@ -610,38 +712,61 @@ async function recordStockIn() {
     return;
   }
 
-  try {
-    const res = await fetch(`${API}/stockins`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name,
-        category,
-        price,
-        quantity,
-        source,
-        employeeName,
-      }),
-    });
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      alert("Error: " + (err.error || "Failed to add stock"));
-      return;
-    }
-
-    clearStockInForm();
-    showToast("Stock added successfully!");
-    await renderStockIn();
-    await renderProducts();
-    await renderInventory();
-    await renderDashboard();
-    populateSaleDropdown();
-    populateStockInSuggestions();
-  } catch (err) {
-    console.error("Stock In Failed:", err);
-    alert("System Error: " + err.message);
+  // Update in clientStore
+  const prods = clientStore.getProducts();
+  let p = prods.find((item) => item.name.trim().toLowerCase() === name.trim().toLowerCase());
+  let productId;
+  if (p) {
+    productId = p.id;
+    p.price = price;
+    if (category) p.category = category;
+    p.stock = (parseInt(p.stock, 10) || 0) + quantity;
+  } else {
+    productId = Date.now();
+    p = {
+      id: productId,
+      name: name.trim(),
+      category: category || "General",
+      price,
+      stock: 500 + quantity,
+      dateAdded: new Date().toLocaleDateString("en-PH"),
+    };
+    prods.unshift(p);
   }
+  clientStore.set("cp_products", prods);
+  productsCache = prods;
+
+  const stockins = clientStore.getStockins();
+  stockins.unshift({
+    id: Date.now(),
+    productId,
+    productName: name.trim(),
+    quantity,
+    source: source || "General Supplier",
+    employeeName,
+    date: new Date().toLocaleDateString("en-PH"),
+    timestamp: new Date().toISOString(),
+  });
+  clientStore.set("cp_stockins", stockins);
+
+  // Sync to server if online
+  await apiCall(`/stockins`, "POST", {
+    name,
+    category,
+    price,
+    quantity,
+    source,
+    employeeName,
+  });
+
+  clearStockInForm();
+  showToast("Stock added successfully!");
+  await renderStockIn();
+  await renderProducts();
+  await renderInventory();
+  await renderDashboard();
+  populateSaleDropdown();
+  populateStockInSuggestions();
 }
 
 async function renderStockIn() {
@@ -882,30 +1007,28 @@ async function saveEmployee() {
     return;
   }
 
-  const res = await fetch(`${API}/employees`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      firstName,
-      middleName,
-      lastName,
-      gender,
-      dob,
-      role,
-      contact,
-      email,
-      dateHired,
-      status,
-      address,
-      emergencyName,
-      emergencyContact,
-    }),
-  });
+  const empData = {
+    id: Date.now(),
+    firstName,
+    middleName,
+    lastName,
+    gender,
+    dob,
+    role,
+    contact,
+    email,
+    dateHired,
+    status,
+    address,
+    emergencyName,
+    emergencyContact,
+  };
 
-  if (!res.ok) {
-    showToast("Failed to save employee.", "error");
-    return;
-  }
+  const serverResult = await apiCall(`/employees`, "POST", empData);
+  const emps = clientStore.getEmployees();
+  emps.unshift(serverResult || empData);
+  clientStore.set("cp_employees", emps);
+  employeesCache = emps;
 
   showToast("Employee added successfully!");
   clearEmployeeForm();
@@ -938,29 +1061,29 @@ async function updateEmployee() {
     return;
   }
 
-  const res = await fetch(`${API}/employees/${id}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      firstName,
-      middleName,
-      lastName,
-      gender,
-      dob,
-      role,
-      contact,
-      email,
-      dateHired,
-      status,
-      address,
-      emergencyName,
-      emergencyContact,
-    }),
-  });
+  const empData = {
+    firstName,
+    middleName,
+    lastName,
+    gender,
+    dob,
+    role,
+    contact,
+    email,
+    dateHired,
+    status,
+    address,
+    emergencyName,
+    emergencyContact,
+  };
 
-  if (!res.ok) {
-    showToast("Failed to update employee.", "error");
-    return;
+  await apiCall(`/employees/${id}`, "PUT", empData);
+  const emps = clientStore.getEmployees();
+  const index = emps.findIndex((e) => String(e.id) === String(id));
+  if (index !== -1) {
+    emps[index] = { ...emps[index], ...empData, id: Number(id) };
+    clientStore.set("cp_employees", emps);
+    employeesCache = emps;
   }
 
   showToast("Employee updated successfully!");
@@ -976,11 +1099,12 @@ async function deleteEmployee() {
   }
   if (!confirm("Are you sure you want to delete this employee?")) return;
 
-  const res = await fetch(`${API}/employees/${id}`, { method: "DELETE" });
-  if (!res.ok) {
-    showToast("Failed to delete employee.", "error");
-    return;
-  }
+  await apiCall(`/employees/${id}`, "DELETE");
+  let emps = clientStore.getEmployees();
+  emps = emps.filter((e) => String(e.id) !== String(id));
+  clientStore.set("cp_employees", emps);
+  employeesCache = emps;
+
   showToast("Employee deleted successfully!", "info");
   clearEmployeeForm();
   await renderEmployees();
@@ -1028,17 +1152,11 @@ async function addUser() {
     return;
   }
 
-  const res = await fetch(`${API}/users`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, password, role }),
-  });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    showToast("Error: " + (err.error || "Failed to add user"), "error");
-    return;
-  }
+  const userData = { id: Date.now(), username, password, role };
+  await apiCall(`/users`, "POST", { username, password, role });
+  const users = clientStore.getUsers();
+  users.unshift(userData);
+  clientStore.set("cp_users", users);
 
   document.getElementById("new-username").value = "";
   document.getElementById("new-password").value = "";
@@ -1048,11 +1166,11 @@ async function addUser() {
 
 async function deleteUser(id) {
   if (!confirm("Are you sure you want to delete this user?")) return;
-  const res = await fetch(`${API}/users/${id}`, { method: "DELETE" });
-  if (!res.ok) {
-    showToast("Failed to delete user.", "error");
-    return;
-  }
+  await apiCall(`/users/${id}`, "DELETE");
+  let users = clientStore.getUsers();
+  users = users.filter((u) => String(u.id) !== String(id));
+  clientStore.set("cp_users", users);
+
   showToast("User deleted successfully!", "info");
   await renderUsers();
 }

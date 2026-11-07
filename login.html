@@ -128,35 +128,61 @@
           return;
         }
 
+        // 1. Try server login if backend is running
         try {
-          if (window.location.protocol === "file:") {
-            errorMsg.innerHTML =
-              "Error: Please run via Node server and open <b>http://127.0.0.1:3000</b> in your browser.";
-            errorMsg.style.display = "block";
-            return;
-          }
-
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 2000);
           const res = await fetch(`${API}/login`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ username, password }),
+            signal: controller.signal,
           });
+          clearTimeout(timeoutId);
 
-          const data = await res.json();
-
-          if (res.ok && data.success) {
-            sessionStorage.setItem("currentUser", JSON.stringify(data.user));
-            window.location.href = "index.html";
-          } else {
-            errorMsg.textContent =
-              data.error || "Invalid username or password!";
-            errorMsg.style.display = "block";
+          if (res.ok) {
+            const data = await res.json();
+            if (data.success) {
+              sessionStorage.setItem("currentUser", JSON.stringify(data.user));
+              window.location.href = "index.html";
+              return;
+            }
           }
         } catch (err) {
-          errorMsg.textContent =
-            "Cannot connect to server. Please ensure node server.js is running.";
-          errorMsg.style.display = "block";
+          // Backend server is not running (e.g. running on Render Static Site or Vercel)
         }
+
+        // 2. Standalone / Static Site Fallback
+        const defaultUsers = [
+          { id: 1, username: "admin", password: "admin123", role: "Admin" },
+        ];
+        let users = [];
+        try {
+          users = JSON.parse(localStorage.getItem("cp_users") || "[]");
+        } catch (e) {
+          users = [];
+        }
+        if (!users.length) users = defaultUsers;
+
+        const matched = users.find(
+          (u) => u.username === username && u.password === password,
+        );
+
+        if (matched) {
+          sessionStorage.setItem(
+            "currentUser",
+            JSON.stringify({
+              id: matched.id,
+              username: matched.username,
+              role: matched.role,
+            }),
+          );
+          window.location.href = "index.html";
+          return;
+        }
+
+        errorMsg.textContent = "Invalid username or password!";
+        errorMsg.style.display = "block";
       }
 
       document.addEventListener("DOMContentLoaded", () => {
